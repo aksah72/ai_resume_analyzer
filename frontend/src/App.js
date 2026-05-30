@@ -114,7 +114,7 @@ function App() {
           <span className="title-line1">Resume</span>
           <span className="title-line2">Analyzer</span>
         </h1>
-        <p className="hero-sub">Upload your resume and get instant ATS scoring, skill extraction, and AI-powered improvement tips.</p>
+        <p className="hero-sub">Upload resume and get instant ATS scoring, skill extraction, and AI-powered improvement tips.</p>
         <div className="hero-stats">
           <div className="stat-pill"><FaChartLine size={13}/> <strong>1,200+</strong> Analyzed</div>
           <div className="stat-pill"><FaRocket size={13}/> <strong>94%</strong> Success Rate</div>

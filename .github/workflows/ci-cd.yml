@@ -57,43 +57,46 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Deploy via SSH
-  uses: appleboy/ssh-action@v1.0.3
-  with:
-    host: ${{ secrets.EC2_HOST }}
-    username: ${{ secrets.EC2_USER }}
-    key: ${{ secrets.EC2_KEY }}
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_KEY }}
+          timeout: 120s
+          script: |
+            set -e
 
-    timeout: 30m
-    command_timeout: 30m
+            # ── Pull latest code ─────────────────────────────
+            cd ~/ai_resume_analyzer
+            git fetch origin
+            git reset --hard origin/main
 
-    script: |
-      set -e
+            # ── Frontend: install, build, serve ──────────────
+            cd frontend
+            npm install
+            rm -rf build
+            npm run build
 
-      cd ~/ai_resume_analyzer
-      git fetch origin
-      git reset --hard origin/main
+            # Use pm2 to serve the static build
+            pm2 describe frontend > /dev/null 2>&1 \
+              && pm2 restart frontend \
+              || pm2 start "npx serve -s build -l 3000" --name frontend
 
-      cd frontend
-      npm install
-      rm -rf build
-      npm run build
+            # ── Upload service ────────────────────────────────
+            cd ../upload-service
+            npm install
+            pm2 describe upload-service > /dev/null 2>&1 \
+              && pm2 restart upload-service \
+              || pm2 start server.js --name upload-service
 
-      pm2 describe frontend > /dev/null 2>&1 \
-        && pm2 restart frontend \
-        || pm2 start "npx serve -s build -l 3000" --name frontend
+            # ── AI service ────────────────────────────────────
+            cd ../ai-service
+            npm install
+            pm2 describe ai-service > /dev/null 2>&1 \
+              && pm2 restart ai-service \
+              || pm2 start server.js --name ai-service
 
-      cd ../upload-service
-      npm install
-      pm2 describe upload-service > /dev/null 2>&1 \
-        && pm2 restart upload-service \
-        || pm2 start server.js --name upload-service
+            # ── Persist pm2 across reboots ───────────────────
+            pm2 save
 
-      cd ../ai-service
-      npm install
-      pm2 describe ai-service > /dev/null 2>&1 \
-        && pm2 restart ai-service \
-        || pm2 start server.js --name ai-service
-
-      pm2 save
-
-      echo "Deployment complete"
+            echo "✅ Deployment complete"
