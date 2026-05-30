@@ -27,7 +27,7 @@ jobs:
 
       - name: Install frontend dependencies
         working-directory: frontend
-        run: npm ci
+        run: npm install
 
       - name: Run frontend tests
         working-directory: frontend
@@ -39,11 +39,11 @@ jobs:
 
       - name: Install upload-service dependencies
         working-directory: upload-service
-        run: npm ci
+        run: npm install
 
       - name: Install ai-service dependencies
         working-directory: ai-service
-        run: npm ci
+        run: npm install
 
   # ── Job 2: Deploy to EC2 (only on push to main) ───────────────
   deploy:
