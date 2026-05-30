@@ -73,7 +73,7 @@ jobs:
 
             # ── Frontend: install, build, serve ──────────────
             cd frontend
-            npm ci
+            npm install
             rm -rf build
             npm run build
 
@@ -84,14 +84,14 @@ jobs:
 
             # ── Upload service ────────────────────────────────
             cd ../upload-service
-            npm ci
+            npm install
             pm2 describe upload-service > /dev/null 2>&1 \
               && pm2 restart upload-service \
               || pm2 start server.js --name upload-service
 
             # ── AI service ────────────────────────────────────
             cd ../ai-service
-            npm ci
+            npm install
             pm2 describe ai-service > /dev/null 2>&1 \
               && pm2 restart ai-service \
               || pm2 start server.js --name ai-service
