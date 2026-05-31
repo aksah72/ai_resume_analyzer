@@ -7,33 +7,28 @@ on:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-
     steps:
-      # 1. Checkout code
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # 2. Setup Node.js
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '18'
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
 
-      # 3. Install dependencies (on GitHub runner)
       - name: Install frontend dependencies
         run: |
           cd frontend
           npm install
 
-      # 4. Build React app (on GitHub runner - FAST)
       - name: Build React app
+        env:
+          REACT_APP_UPLOAD_URL: http://${{ secrets.EC2_HOST }}:5001
+          REACT_APP_AI_URL: http://${{ secrets.EC2_HOST }}:5002
         run: |
           cd frontend
           npm run build
 
-      # 5. Copy build folder to EC2
       - name: Copy build to EC2
         uses: appleboy/scp-action@v0.1.4
         with:
@@ -41,10 +36,9 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_KEY }}
           source: "frontend/build/"
-          target: "~/ai_resume_analyzer/frontend/"
-          strip_components: 2
+          target: "/home/ubuntu/ai_resume_analyzer/frontend/"
+          strip_components: 1
 
-      # 6. SSH into EC2 - restart services only (NO build)
       - name: Deploy & restart services
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -52,21 +46,6 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_KEY }}
           script: |
-            set -e
-            cd ~/ai_resume_analyzer
-
-            # Pull latest backend/ai-service code
-            git fetch origin
-            git reset --hard origin/main
-
-            # — AI Service ————————————————————————
-            cd ai-service
-            npm install --production
-            pm2 describe ai-service > /dev/null 2>&1 \
-              && pm2 restart ai-service \
-              || pm2 start server.js --name ai-service
-
-            # — Persist pm2 across reboots ————————
-            pm2 save
-
-            echo "✅ Deployment complete"
+            cd ~/ai_resume_analyzer/upload-service && npm install
+            cd ~/ai_resume_analyzer/ai-service && npm install
+            pm2 restart all
