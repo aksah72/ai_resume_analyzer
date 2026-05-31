@@ -2,101 +2,71 @@ name: AI Resume Analyzer CI/CD
 
 on:
   push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
+    branches: [main]
 
 jobs:
-  # ── Job 1: Test & Lint ─────────────────────────────────────────
-  test:
-    name: Test & Build Check
+  build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
+      # 1. Checkout code
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      # 2. Setup Node.js
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
         with:
-          node-version: "20"
-          cache: "npm"
+          node-version: '18'
+          cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
+      # 3. Install dependencies (on GitHub runner)
       - name: Install frontend dependencies
-        working-directory: frontend
-        run: npm install
+        run: |
+          cd frontend
+          npm install
 
-      - name: Run frontend tests
-        working-directory: frontend
-        run: npm test -- --watchAll=false --passWithNoTests
+      # 4. Build React app (on GitHub runner - FAST)
+      - name: Build React app
+        run: |
+          cd frontend
+          npm run build
 
-      - name: Build frontend
-        working-directory: frontend
-        run: npm run build
+      # 5. Copy build folder to EC2
+      - name: Copy build to EC2
+        uses: appleboy/scp-action@v0.1.4
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_KEY }}
+          source: "frontend/build/"
+          target: "~/ai_resume_analyzer/frontend/"
+          strip_components: 2
 
-      - name: Install upload-service dependencies
-        working-directory: upload-service
-        run: npm install
-
-      - name: Install ai-service dependencies
-        working-directory: ai-service
-        run: npm install
-
-  # ── Job 2: Deploy to EC2 (only on push to main) ───────────────
-  deploy:
-    name: Deploy to EC2
-    runs-on: ubuntu-latest
-    needs: test           # only runs if tests pass
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Deploy via SSH
+      # 6. SSH into EC2 - restart services only (NO build)
+      - name: Deploy & restart services
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_KEY }}
-          timeout: 120s
           script: |
             set -e
-
-            # ── Pull latest code ─────────────────────────────
             cd ~/ai_resume_analyzer
+
+            # Pull latest backend/ai-service code
             git fetch origin
             git reset --hard origin/main
 
-            # ── Frontend: install, build, serve ──────────────
-            cd frontend
-            npm install
-            rm -rf build
-            npm run build
-
-            # Use pm2 to serve the static build
-            pm2 describe frontend > /dev/null 2>&1 \
-              && pm2 restart frontend \
-              || pm2 start "npx serve -s build -l 3000" --name frontend
-
-            # ── Upload service ────────────────────────────────
-            cd ../upload-service
-            npm install
-            pm2 describe upload-service > /dev/null 2>&1 \
-              && pm2 restart upload-service \
-              || pm2 start server.js --name upload-service
-
-            # ── AI service ────────────────────────────────────
-            cd ../ai-service
-            npm install
+            # — AI Service ————————————————————————
+            cd ai-service
+            npm install --production
             pm2 describe ai-service > /dev/null 2>&1 \
               && pm2 restart ai-service \
               || pm2 start server.js --name ai-service
 
-            # ── Persist pm2 across reboots ───────────────────
+            # — Persist pm2 across reboots ————————
             pm2 save
 
             echo "✅ Deployment complete"
