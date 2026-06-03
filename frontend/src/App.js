@@ -221,7 +221,7 @@ function App() {
       </main>
 
       <footer className="footer">
-        <span><FaGithub size={14} /> GitHub Actions CI/CD — Auto deploys on push to main</span>
+        <span><FaGithub size={14} /> GitHub Actions CI/CD by Aman — Auto deploys on push to main</span>
       </footer>
     </div>
   );
